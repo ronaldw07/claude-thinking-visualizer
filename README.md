@@ -55,8 +55,13 @@ restore `~/.claude/settings.json.before-thinking-visualizer`.
 ## Preview without installing
 
 ```bash
-python3 demo.py       # animates every tier up and back down
+python3 demo.py       # animates every tier up and back down in the terminal
+open web/index.html   # interactive version with a draggable slider
 ```
+
+`web/index.html` is a standalone page — no build step, no dependencies. Drag the
+slider or use the arrow keys to move between tiers and watch the meter charge.
+Useful for showing the thing on a screen without installing anything.
 
 ## Tests
 

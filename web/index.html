@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thinking Mode Visualizer</title>
+<style>
+  :root {
+    --tier: #00d7ff;
+    --bg: #07080c;
+    --seg-off: #1b1f2a;
+    --frame: 0;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    background:
+      radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--tier) 14%, transparent), transparent 62%),
+      var(--bg);
+    color: #e7ecf5;
+    font: 400 16px/1.5 ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+    transition: background 600ms ease;
+    overflow: hidden;
+  }
+
+  .stage {
+    width: min(760px, 92vw);
+    display: grid;
+    gap: 34px;
+    justify-items: center;
+    text-align: center;
+  }
+  .stage.shake { animation: shake 420ms cubic-bezier(.36,.07,.19,.97); }
+  @keyframes shake {
+    10%, 90% { transform: translateX(-2px); }
+    20%, 80% { transform: translateX(4px); }
+    30%, 50%, 70% { transform: translateX(-7px); }
+    40%, 60% { transform: translateX(7px); }
+  }
+
+  .banner {
+    height: 30px;
+    font-size: 15px;
+    letter-spacing: .42em;
+    font-weight: 700;
+    color: var(--tier);
+    opacity: 0;
+    text-shadow: 0 0 22px currentColor;
+  }
+  .banner.on { animation: flare 1.5s ease-out; }
+  @keyframes flare {
+    0%   { opacity: 0; transform: scale(.8); filter: blur(6px); }
+    12%  { opacity: 1; transform: scale(1.14); filter: blur(0); }
+    22%  { opacity: .55; }
+    32%  { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; }
+  }
+
+  .tier-name {
+    font-size: clamp(42px, 9vw, 88px);
+    font-weight: 800;
+    letter-spacing: .1em;
+    line-height: 1;
+    color: var(--tier);
+    text-shadow: 0 0 40px color-mix(in srgb, var(--tier) 65%, transparent);
+    transition: color 400ms ease, text-shadow 400ms ease;
+  }
+  .tier-name.pop { animation: pop 520ms cubic-bezier(.2,1.5,.4,1); }
+  @keyframes pop { 0% { transform: scale(.86); } 60% { transform: scale(1.07); } 100% { transform: scale(1); } }
+
+  .meter { display: flex; gap: 7px; }
+  .seg {
+    width: clamp(16px, 3.4vw, 30px);
+    height: 58px;
+    border-radius: 4px;
+    background: var(--seg-off);
+    transition: background 260ms ease, box-shadow 260ms ease, transform 260ms ease;
+  }
+  .seg.lit {
+    background: var(--tier);
+    box-shadow: 0 0 16px color-mix(in srgb, var(--tier) 75%, transparent);
+    transform: scaleY(1.09);
+  }
+
+  .readout { font-size: 14px; letter-spacing: .2em; color: #7c879b; }
+  .readout b { color: var(--tier); font-weight: 700; }
+
+  .slider-wrap { width: 100%; display: grid; gap: 14px; }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 10px;
+    border-radius: 99px;
+    background: linear-gradient(90deg, var(--tier) calc(var(--pct) * 1%), var(--seg-off) calc(var(--pct) * 1%));
+    outline: none;
+    cursor: grab;
+    transition: background 260ms ease;
+  }
+  input[type=range]:active { cursor: grabbing; }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: #fff;
+    border: 4px solid var(--tier);
+    box-shadow: 0 0 22px color-mix(in srgb, var(--tier) 85%, transparent);
+    transition: border-color 260ms ease, box-shadow 260ms ease, transform 160ms ease;
+  }
+  input[type=range]:active::-webkit-slider-thumb { transform: scale(1.18); }
+  input[type=range]::-moz-range-thumb {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: #fff; border: 4px solid var(--tier);
+    box-shadow: 0 0 22px color-mix(in srgb, var(--tier) 85%, transparent);
+  }
+
+  .ticks { display: flex; justify-content: space-between; font-size: 11px; letter-spacing: .16em; color: #59637a; }
+  .ticks span { flex: 1; }
+  .ticks span:first-child { text-align: left; }
+  .ticks span:last-child { text-align: right; }
+  .ticks span.active { color: var(--tier); font-weight: 700; }
+
+  .hint { font-size: 12px; letter-spacing: .12em; color: #4b5468; }
+
+  .spark {
+    position: fixed;
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--tier);
+    box-shadow: 0 0 12px currentColor;
+    pointer-events: none;
+    animation: fly 900ms ease-out forwards;
+  }
+  @keyframes fly {
+    from { opacity: 1; transform: translate(0, 0) scale(1); }
+    to   { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(.2); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition-duration: 60ms !important; }
+  }
+</style>
+</head>
+<body>
+  <main class="stage" id="stage">
+    <div class="banner" id="banner"></div>
+    <h1 class="tier-name" id="tierName">SPARK</h1>
+    <div class="meter" id="meter" aria-hidden="true"></div>
+    <p class="readout"><b id="pct">20%</b> &nbsp;·&nbsp; effortLevel: <b id="key">low</b></p>
+
+    <div class="slider-wrap">
+      <input type="range" id="slider" min="0" max="4" step="1" value="0"
+             aria-label="Thinking effort level">
+      <div class="ticks" id="ticks"></div>
+    </div>
+
+    <p class="hint">drag the slider &nbsp;·&nbsp; or use ← → arrow keys</p>
+  </main>
+
+<script>
+const TIERS = [
+  { key: 'low',    name: 'SPARK',     color: '#00d7ff' },
+  { key: 'medium', name: 'FOCUS',     color: '#00ff87' },
+  { key: 'high',   name: 'SURGE',     color: '#ffff00' },
+  { key: 'xhigh',  name: 'BLAZE',     color: '#ff8700' },
+  { key: 'max',    name: 'OVERDRIVE', color: '#ff005f' },
+];
+const SEGMENTS_PER_TIER = 3;
+const TOTAL_SEGMENTS = TIERS.length * SEGMENTS_PER_TIER;
+
+const el = (id) => document.getElementById(id);
+const stage = el('stage'), meter = el('meter'), slider = el('slider');
+let current = 0;
+
+meter.innerHTML = Array.from({ length: TOTAL_SEGMENTS }, () => '<i class="seg"></i>').join('');
+el('ticks').innerHTML = TIERS.map((t, i) =>
+  `<span data-i="${i}">${t.name}</span>`).join('');
+
+const segments = [...meter.children];
+const tickLabels = [...el('ticks').children];
+
+function replay(node, className) {
+  node.classList.remove(className);
+  void node.offsetWidth;          // force reflow so the animation restarts
+  node.classList.add(className);
+}
+
+function emitSparks(color) {
+  const rect = meter.getBoundingClientRect();
+  for (let i = 0; i < 22; i++) {
+    const spark = document.createElement('div');
+    const angle = Math.random() * Math.PI * 2;
+    const distance = 90 + Math.random() * 200;
+    spark.className = 'spark';
+    spark.style.left = `${rect.left + Math.random() * rect.width}px`;
+    spark.style.top = `${rect.top + rect.height / 2}px`;
+    spark.style.background = color;
+    spark.style.setProperty('--dx', `${Math.cos(angle) * distance}px`);
+    spark.style.setProperty('--dy', `${Math.sin(angle) * distance}px`);
+    document.body.appendChild(spark);
+    spark.addEventListener('animationend', () => spark.remove());
+  }
+}
+
+function render(index, previous) {
+  const tier = TIERS[index];
+  const lit = (index + 1) * SEGMENTS_PER_TIER;
+
+  document.documentElement.style.setProperty('--tier', tier.color);
+  slider.style.setProperty('--pct', (index / (TIERS.length - 1)) * 100);
+
+  segments.forEach((seg, i) => {
+    seg.classList.toggle('lit', i < lit);
+    // stagger the fill so the bar reads as charging, not snapping
+    seg.style.transitionDelay = i < lit ? `${i * 28}ms` : '0ms';
+  });
+
+  el('tierName').textContent = tier.name;
+  el('pct').textContent = Math.round((lit / TOTAL_SEGMENTS) * 100) + '%';
+  el('key').textContent = tier.key;
+  tickLabels.forEach((label, i) => label.classList.toggle('active', i === index));
+
+  if (previous === null || previous === index) return;
+
+  const banner = el('banner');
+  banner.textContent = index > previous ? '⚡ POWER UP ⚡' : 'POWER DOWN';
+  replay(banner, 'on');
+  replay(el('tierName'), 'pop');
+  if (index > previous) {
+    replay(stage, 'shake');
+    emitSparks(tier.color);
+  }
+}
+
+slider.addEventListener('input', () => {
+  const next = Number(slider.value);
+  if (next === current) return;
+  const previous = current;
+  current = next;
+  render(current, previous);
+});
+
+render(0, null);
+</script>
+</body>
+</html>
