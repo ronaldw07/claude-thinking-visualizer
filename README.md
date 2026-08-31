@@ -22,15 +22,26 @@ Cycle the level and the bar charges up with a short power-up burst, then settles
 
 ## How it works
 
-Claude Code persists the thinking level as `effortLevel` in `settings.json` and
-rewrites the file whenever you change it. The statusline command runs on every
-refresh, so `statusline.py` reads that value, compares it against the level it
-recorded last time in `~/.claude/thinking-visualizer-state.json`, and starts a
-14-frame charge animation whenever the two differ. Once the frames run out it
-falls back to the steady one-line meter.
+Claude Code sends the live reasoning effort as `effort.level` on stdin every
+time it refreshes the statusline. `statusline.py` compares that against the
+level it recorded last run in `~/.claude/thinking-visualizer-state.json`, and
+when the two differ it stamps the change time and plays a 4-second charge
+animation before settling back to the steady one-line meter.
 
-Project-level `.claude/settings.json` wins over the user-level file, matching
-how Claude Code resolves settings.
+The charge is driven by wall-clock time rather than an invocation counter,
+because statusline updates are event-driven and go quiet while the session is
+idle — a counter would freeze mid-animation. The installer also sets
+`refreshInterval: 1` so the burst keeps ticking when nothing else is happening.
+
+If `effort.level` is absent (older Claude Code, or a model without the effort
+parameter) it falls back to the `effortLevel` setting, project
+`.claude/settings.json` first, then the user-level file.
+
+## Terminal support
+
+Built for the Claude Code terminal TUI. It uses 256-color ANSI escapes and
+two-line output, both of which need a terminal that supports them. It has not
+been verified against the VS Code / JetBrains extension UIs.
 
 ## Install
 

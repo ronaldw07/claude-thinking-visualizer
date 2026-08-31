@@ -77,20 +77,43 @@ def test_render_uses_idle_line_once_the_surge_expires():
     assert "Opus 5" in rendered
 
 
-def test_advance_state_starts_a_surge_when_the_level_changes():
-    state = statusline.advance_state("max", {"level": "high", "frame": 0})
-    assert state == {"level": "max", "previous": "high", "frame": powerup.SURGE_FRAMES}
+def test_advance_state_stamps_the_change_time_when_the_level_changes():
+    state = statusline.advance_state("max", {"level": "high", "changed_at": 100.0}, 500.0)
+    assert state == {"level": "max", "previous": "high", "changed_at": 500.0}
 
 
-def test_advance_state_counts_down_while_the_level_holds():
-    state = statusline.advance_state("max", {"level": "max", "previous": "high", "frame": 5})
-    assert state["frame"] == 4
+def test_advance_state_keeps_the_original_stamp_while_the_level_holds():
+    saved = {"level": "max", "previous": "high", "changed_at": 500.0}
+    state = statusline.advance_state("max", saved, 503.0)
+    assert state["changed_at"] == 500.0
     assert state["previous"] == "high"
 
 
-def test_advance_state_never_goes_negative():
-    state = statusline.advance_state("max", {"level": "max", "frame": 0})
-    assert state["frame"] == 0
+def test_surge_frame_counts_down_with_elapsed_time():
+    state = {"changed_at": 1000.0}
+    # Arrange: sample the burst at its start, midpoint, and expiry.
+    at_start = statusline.surge_frame(state, 1000.0)
+    at_middle = statusline.surge_frame(state, 1000.0 + statusline.SURGE_SECONDS / 2)
+    at_end = statusline.surge_frame(state, 1000.0 + statusline.SURGE_SECONDS)
+    assert at_start == powerup.SURGE_FRAMES
+    assert 0 < at_middle < at_start
+    assert at_end == 0
+
+
+def test_surge_frame_is_idle_long_after_the_change():
+    assert statusline.surge_frame({"changed_at": 1000.0}, 9999.0) == 0
+
+
+def test_surge_frame_handles_a_missing_or_future_stamp():
+    assert statusline.surge_frame({}, 1000.0) == 0
+    assert statusline.surge_frame({"changed_at": 2000.0}, 1000.0) == 0
+
+
+def test_current_level_prefers_the_live_session_value(tmp_path, monkeypatch):
+    monkeypatch.setattr(statusline, "CLAUDE_DIR", str(tmp_path))
+    (tmp_path / "settings.json").write_text('{"effortLevel": "low"}')
+    payload = {"effort": {"level": "max"}}
+    assert statusline.current_level(payload, None) == "max"
 
 
 def test_current_level_prefers_project_settings(tmp_path, monkeypatch):
@@ -98,13 +121,18 @@ def test_current_level_prefers_project_settings(tmp_path, monkeypatch):
     (project / ".claude").mkdir(parents=True)
     (project / ".claude" / "settings.json").write_text('{"effortLevel": "low"}')
     monkeypatch.setattr(statusline, "CLAUDE_DIR", str(tmp_path / "home"))
-    assert statusline.current_level(str(project)) == "low"
+    assert statusline.current_level({}, str(project)) == "low"
 
 
 def test_current_level_falls_back_to_default(tmp_path, monkeypatch):
     monkeypatch.setattr(statusline, "CLAUDE_DIR", str(tmp_path / "missing"))
     monkeypatch.delenv("CLAUDE_EFFORT_LEVEL", raising=False)
-    assert statusline.current_level(None) == statusline.DEFAULT_LEVEL
+    assert statusline.current_level({}, None) == statusline.DEFAULT_LEVEL
+
+
+def test_build_context_notes_when_thinking_is_disabled():
+    payload = {"model": {"display_name": "Opus 5"}, "thinking": {"enabled": False}}
+    assert "thinking off" in statusline.build_context(payload)
 
 
 def test_read_json_survives_malformed_files(tmp_path):

@@ -16,7 +16,9 @@ repo_dir, settings_path = sys.argv[1], sys.argv[2]
 
 settings = {}
 if os.path.exists(settings_path):
-    shutil.copyfile(settings_path, settings_path + ".before-thinking-visualizer")
+    backup = settings_path + ".before-thinking-visualizer"
+    if not os.path.exists(backup):  # keep the original, not a re-install snapshot
+        shutil.copyfile(settings_path, backup)
     with open(settings_path) as handle:
         settings = json.load(handle)
 
@@ -31,6 +33,9 @@ updated["statusLine"] = {
     "type": "command",
     "command": "python3 {}".format(os.path.join(repo_dir, "statusline.py")),
     "padding": 0,
+    # Statusline updates are event-driven and stop while the session is idle.
+    # A 1s timer keeps the power-up animation playing after you cycle levels.
+    "refreshInterval": 1,
 }
 
 with open(settings_path, "w") as handle:

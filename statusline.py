@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
 """Claude Code statusline that visualizes the current thinking mode.
 
-Claude Code stores the thinking/effort setting as `effortLevel` in
-settings.json and rewrites the file whenever you cycle it. This script is
-invoked on every statusline refresh: it compares the level against the one
-it saw last time and, when it changed, plays a short power-up overlay
-before settling back into a steady power meter.
+Claude Code passes the live reasoning effort as `effort.level` on stdin and
+re-runs this script whenever the session changes. We compare that level
+against the one recorded last run and, when it changed, play a short
+power-up overlay before settling into a steady power meter.
+
+The animation is driven by wall-clock time rather than an invocation
+counter: statusline updates are event-driven and go quiet while the session
+is idle, so a counter would freeze mid-charge. Pairing elapsed time with
+`refreshInterval` keeps the burst playing either way.
 """
 
 import json
+import math
 import os
 import sys
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -20,6 +26,7 @@ CLAUDE_DIR = os.path.expanduser("~/.claude")
 STATE_PATH = os.path.join(CLAUDE_DIR, "thinking-visualizer-state.json")
 SETTINGS_FILES = ("settings.local.json", "settings.json")
 DEFAULT_LEVEL = "medium"
+SURGE_SECONDS = 4.0
 
 
 def read_json(path):
@@ -30,8 +37,12 @@ def read_json(path):
         return {}
 
 
-def current_level(project_dir=None):
-    """Most specific effortLevel wins: project settings, then user settings."""
+def current_level(payload=None, project_dir=None):
+    """Live session value if Claude Code sent one, else the settings files."""
+    level = ((payload or {}).get("effort") or {}).get("level")
+    if level:
+        return level
+
     candidates = []
     if project_dir:
         candidates.append(os.path.join(project_dir, ".claude", "settings.local.json"))
@@ -45,15 +56,24 @@ def current_level(project_dir=None):
     return os.environ.get("CLAUDE_EFFORT_LEVEL", DEFAULT_LEVEL)
 
 
-def advance_state(level, saved):
+def advance_state(level, saved, now):
     """Return the new state dict. Pure, so the transition is testable."""
     if saved.get("level") != level:
-        return {"level": level, "previous": saved.get("level"), "frame": SURGE_FRAMES}
+        return {"level": level, "previous": saved.get("level"), "changed_at": now}
     return {
         "level": level,
         "previous": saved.get("previous"),
-        "frame": max(0, int(saved.get("frame", 0)) - 1),
+        "changed_at": saved.get("changed_at", 0),
     }
+
+
+def surge_frame(state, now):
+    """Frames remaining in the burst, counted down by elapsed wall time."""
+    elapsed = now - float(state.get("changed_at") or 0)
+    if elapsed < 0 or elapsed >= SURGE_SECONDS:
+        return 0
+    remaining = 1.0 - (elapsed / SURGE_SECONDS)
+    return max(0, min(SURGE_FRAMES, int(math.ceil(remaining * SURGE_FRAMES))))
 
 
 def write_state(state):
@@ -73,6 +93,8 @@ def build_context(payload):
     model = (payload.get("model") or {}).get("display_name")
     directory = (payload.get("workspace") or {}).get("current_dir")
     parts = [part for part in (model, os.path.basename(directory or "")) if part]
+    if (payload.get("thinking") or {}).get("enabled") is False:
+        parts.append("thinking off")
     return " · ".join(parts)
 
 
@@ -81,12 +103,14 @@ def main():
     if not sys.stdin.isatty():
         payload = json.loads(sys.stdin.read() or "{}")
 
+    now = time.time()
     project_dir = (payload.get("workspace") or {}).get("project_dir")
-    level = current_level(project_dir)
-    state = advance_state(level, read_json(STATE_PATH))
+    level = current_level(payload, project_dir)
+    state = advance_state(level, read_json(STATE_PATH), now)
     write_state(state)
 
-    print(render(level, state.get("previous"), state["frame"], build_context(payload)))
+    frame = surge_frame(state, now)
+    print(render(level, state.get("previous"), frame, build_context(payload)))
 
 
 if __name__ == "__main__":
