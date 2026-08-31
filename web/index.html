@@ -366,7 +366,7 @@
       <div class="ticks" id="ticks"></div>
     </div>
 
-    <p class="hint">drag the slider &nbsp;·&nbsp; or use ← → arrow keys</p>
+    <p class="hint" id="hint">drag the slider &nbsp;·&nbsp; or use ← → arrow keys</p>
   </main>
 
 <script>
@@ -680,9 +680,65 @@ slider.addEventListener('input', () => {
   const previous = current;
   current = next;
   render(current, previous);
+  pushLevel(TIERS[current].key);
 });
 
+/* ── bridge ───────────────────────────────────────────────────────────
+   Served over http:// by bridge.py, the slider writes the real
+   effortLevel and mirrors changes you make from Claude Code itself.
+   Opened as a file:// page it stays a self-contained demo.            */
+
+const BRIDGED = location.protocol.startsWith('http');
+let lastServerLevel = null;
+
+function setTo(index, animate) {
+  if (index === current) return;
+  const previous = current;
+  current = index;
+  slider.value = String(index);
+  render(current, animate ? previous : null);
+}
+
+async function pushLevel(key) {
+  if (!BRIDGED) return;
+  try {
+    const res = await fetch('/level', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ level: key }),
+    });
+    lastServerLevel = (await res.json()).level;
+  } catch (_) {
+    el('hint').textContent = 'bridge unreachable — is bridge.py still running?';
+  }
+}
+
+/* Poll so /effort typed in Claude Code moves the slider too. ULTRACODE is
+   stored as xhigh, so an incoming xhigh never yanks you off that rung. */
+async function pollLevel() {
+  try {
+    const { level } = await (await fetch('/level')).json();
+    if (!level || level === lastServerLevel) return;
+    lastServerLevel = level;
+    const onUltracode = TIERS[current].key === 'ultracode' && level === 'xhigh';
+    const index = TIERS.findIndex((t) => t.key === level);
+    if (index >= 0 && !onUltracode) setTo(index, true);
+  } catch (_) { /* server gone; keep the page usable */ }
+}
+
+async function startBridge() {
+  el('hint').innerHTML = 'drag the slider &nbsp;·&nbsp; changes are written to settings.json';
+  try {
+    const { level } = await (await fetch('/level')).json();
+    lastServerLevel = level;
+    const index = TIERS.findIndex((t) => t.key === level);
+    if (index >= 0) setTo(index, false);
+  } catch (_) { /* fall through to the default rung */ }
+  setInterval(pollLevel, 1500);
+}
+
 render(0, null);
+if (BRIDGED) startBridge();
 </script>
 </body>
 </html>
