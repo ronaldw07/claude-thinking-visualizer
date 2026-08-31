@@ -4,21 +4,22 @@ Turns Claude Code's thinking/effort setting into a power meter in the statusline
 Cycle the level and the bar charges up with a short power-up burst, then settles.
 
 ```
-◑ SURGE [▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱]  Opus 5 · my-repo
+◑ HIGH [▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱]  Opus 5 · my-repo
 
 ✵ ╲  POWER UP  ╲ ✵
-[▰▰▰▰▰▰▰▰▰▰▰▰▱▱▱] SURGE ▶ OVERDRIVE 80%  Opus 5 · my-repo
+[▰▰▰▰▰▰▰▰▰▰▰▰▱▱▱] HIGH ▶ MAX 80%  Opus 5 · my-repo
 ```
 
 ## Tiers
 
-| effortLevel | Name | Meter |
+| effortLevel | Label | Meter |
 |---|---|---|
-| `low` | SPARK | 3/15 |
-| `medium` | FOCUS | 6/15 |
-| `high` | SURGE | 9/15 |
-| `xhigh` | BLAZE | 12/15 |
-| `max` | OVERDRIVE | 15/15 |
+| `low` | LOW | 3/15 |
+| `medium` | MEDIUM | 6/15 |
+| `high` | HIGH | 9/15 |
+| `xhigh` | XHIGH | 12/15 |
+| `max` | MAX | 15/15 |
+
 
 ## How it works
 

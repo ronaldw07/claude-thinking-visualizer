@@ -37,7 +37,7 @@ def test_bar_clamps_out_of_range_values():
 
 def test_idle_line_shows_tier_name_and_full_tier_meter():
     rendered = plain(powerup.render_idle(powerup.tier_index("high")))
-    assert "SURGE" in rendered
+    assert "HIGH" in rendered
     assert rendered.count(powerup.BAR_FILLED) == 9
 
 
@@ -58,7 +58,7 @@ def test_surge_fill_drains_when_level_drops():
 def test_surge_overlay_announces_direction():
     up = plain(powerup.render_surge(powerup.tier_index("low"), powerup.tier_index("max"), 3))
     down = plain(powerup.render_surge(powerup.tier_index("max"), powerup.tier_index("low"), 3))
-    assert "POWER UP" in up and "SPARK ▶ MAX" not in up
+    assert "POWER UP" in up and "LOW ▶ MAX" in up
     assert "POWER DOWN" in down
 
 
@@ -73,7 +73,7 @@ def test_render_falls_back_for_unknown_level():
 
 def test_render_uses_idle_line_once_the_surge_expires():
     rendered = plain(powerup.render("medium", "low", 0, "Opus 5"))
-    assert "FOCUS" in rendered and "POWER UP" not in rendered
+    assert "MEDIUM" in rendered and "POWER UP" not in rendered
     assert "Opus 5" in rendered
 
 
