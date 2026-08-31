@@ -282,20 +282,23 @@
     0%, 42%, 46%, 52%, 100% { opacity: 1; }
     44%, 49% { opacity: .55; }
   }
+  body.storm { background: #0d0500; }
   body.max { background: #12000a; }
+  body.storm .aura { animation-duration: 1.6s; }
   body.max .aura { animation-duration: 1.15s; }
-  body.max .scanlines { opacity: .3; animation: crawl 900ms linear infinite; }
+  body.storm .scanlines { opacity: .22; animation: crawl 1.3s linear infinite; }
+  body.max .scanlines { opacity: .3; animation-duration: 900ms; }
   @keyframes crawl { to { background-position: 0 6px; } }
 
   /* pressure closing in from the edges */
-  body.max .vignette {
+  body.storm .vignette {
     background: radial-gradient(circle at 50% 46%, transparent 28%, rgba(0,0,0,.72) 74%,
                 color-mix(in srgb, var(--tier) 60%, transparent) 100%);
     animation: clamp-in 1.9s ease-in-out infinite;
   }
   @keyframes clamp-in { 50% { transform: scale(1.09); opacity: .78; } }
 
-  body.max::after {
+  body.storm::after {
     content: '';
     position: fixed; inset: 0;
     pointer-events: none; z-index: 2;
@@ -304,10 +307,11 @@
   }
   @keyframes overload { 0%, 100% { opacity: .85; } 50% { opacity: .25; } }
 
-  body.max .tier-name {
+  body.storm .tier-name {
     animation: neon 2.6s linear infinite;
     letter-spacing: .2em;
   }
+  body.storm .seg.lit { animation-duration: .7s; }
   body.max .seg.lit { animation-duration: .5s; }
 
   @media (prefers-reduced-motion: reduce) {
@@ -344,12 +348,13 @@ const TIERS = [
   { key: 'low',    name: 'LOW',    color: '#00d7ff' },
   { key: 'medium', name: 'MEDIUM', color: '#00ff87' },
   { key: 'high',   name: 'HIGH',   color: '#ffff00' },
-  { key: 'xhigh',  name: 'XHIGH',  color: '#ff8700' },
+  { key: 'xhigh',  name: 'ULTRACODE', color: '#ff8700' },
   { key: 'max',    name: 'MAX',    color: '#ff005f' },
 ];
 const SEGMENTS_PER_TIER = 3;
 const TOTAL_SEGMENTS = TIERS.length * SEGMENTS_PER_TIER;
 const MAX_INDEX = TIERS.length - 1;
+const STORM_FROM = 3;            // xhigh is Ultracode — it storms too
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 const el = (id) => document.getElementById(id);
@@ -480,27 +485,30 @@ function flash(peak, ms) {
 }
 
 /* At MAX the storm keeps going instead of firing once. */
-function setStorm(active) {
-  document.body.classList.toggle('max', active);
-  el('meterFrame').style.setProperty('--ring', active ? '1' : '0');
+function setStorm(index) {
+  const storming = index >= STORM_FROM;
+  const peak = index === MAX_INDEX;
+  document.body.classList.toggle('storm', storming);
+  document.body.classList.toggle('max', peak);
+  el('meterFrame').style.setProperty('--ring', storming ? (peak ? '1' : '.7') : '0');
   if (stormTimer) { clearInterval(stormTimer); stormTimer = null; }
-  if (!active) return;
+  if (!storming) return;
 
   let beat = 0;
   stormTimer = setInterval(() => {
     beat++;
     if (beat % 3 === 0) {
       // every third beat, a full radial discharge
-      radiate(10 + Math.floor(Math.random() * 6), { thick: 2.4, spread: 70 });
-      shockwave(Math.min(window.innerWidth, window.innerHeight) * 0.9, 800);
-      flash(0.34, 520);
-      emitSparks(20, 1);
+      radiate((peak ? 10 : 6) + Math.floor(Math.random() * 6), { thick: peak ? 2.4 : 1.9, spread: 70 });
+      shockwave(Math.min(window.innerWidth, window.innerHeight) * (peak ? 0.9 : 0.6), 800);
+      flash(peak ? 0.34 : 0.2, 520);
+      emitSparks(peak ? 20 : 12, 1);
     } else {
-      radiate(4 + Math.floor(Math.random() * 4), { thick: 1.6, spread: 55, reach: 0.7 });
+      radiate((peak ? 4 : 2) + Math.floor(Math.random() * 4), { thick: 1.6, spread: 55, reach: 0.7 });
       strike(1, { thick: 1.8, spread: 110 });
-      flash(0.14, 380);
+      flash(peak ? 0.14 : 0.09, 380);
     }
-  }, 900);
+  }, peak ? 900 : 1500);
 }
 
 function celebrate(index, previous) {
@@ -524,6 +532,11 @@ function celebrate(index, previous) {
 
   if (index !== MAX_INDEX) {
     flash(0.3 + power * 0.4, 620);
+    if (index >= STORM_FROM) {
+      radiate(14, { thick: 2.6, spread: 80, reach: 1 });
+      shockwave(Math.max(window.innerWidth, window.innerHeight) * 0.8, 900);
+      emitSparks(40, 1.1);
+    }
     return;
   }
 
@@ -560,7 +573,7 @@ function render(index, previous) {
   el('key').textContent = lit;
   tickLabels.forEach((label, i) => label.classList.toggle('active', i === index));
 
-  setStorm(index === MAX_INDEX);
+  setStorm(index);
   if (previous !== null && previous !== index) celebrate(index, previous);
 }
 
