@@ -11,11 +11,11 @@ BAR_EMPTY = "▱"
 
 # tier order matters: index == power level
 TIERS = (
-    {"key": "low", "name": "SPARK", "icon": "○", "color": 45},
-    {"key": "medium", "name": "FOCUS", "icon": "◔", "color": 48},
-    {"key": "high", "name": "SURGE", "icon": "◑", "color": 226},
-    {"key": "xhigh", "name": "BLAZE", "icon": "◕", "color": 208},
-    {"key": "max", "name": "OVERDRIVE", "icon": "●", "color": 197},
+    {"key": "low", "name": "LOW", "icon": "○", "color": 45},
+    {"key": "medium", "name": "MEDIUM", "icon": "◔", "color": 48},
+    {"key": "high", "name": "HIGH", "icon": "◑", "color": 226},
+    {"key": "xhigh", "name": "XHIGH", "icon": "◕", "color": 208},
+    {"key": "max", "name": "MAX", "icon": "●", "color": 197},
 )
 
 TOTAL_SEGMENTS = len(TIERS) * SEGMENTS_PER_TIER

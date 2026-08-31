@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thinking Mode Visualizer</title>
+<style>
+  :root {
+    --tier: #00d7ff;
+    --intensity: 0;          /* 0 at LOW, 1 at MAX — scales every glow */
+    --bg: #05060a;
+    --seg-off: #171b24;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body { height: 100%; overflow: hidden; }
+
+  body {
+    display: grid;
+    place-items: center;
+    background: var(--bg);
+    color: #e7ecf5;
+    font: 400 16px/1.5 ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  }
+
+  /* ── atmosphere ───────────────────────────────────────────── */
+
+  .aura {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at 50% 46%,
+        color-mix(in srgb, var(--tier) calc(12% + var(--intensity) * 42%), transparent),
+        transparent calc(38% + var(--intensity) * 26%));
+    opacity: calc(.55 + var(--intensity) * .45);
+    transition: background 700ms ease, opacity 700ms ease;
+    /* only transform/opacity here: a viewport-sized filter or blur repaints
+       every frame and tanks the framerate */
+    animation: breathe calc(4s - var(--intensity) * 2.4s) ease-in-out infinite;
+    will-change: transform;
+  }
+  @keyframes breathe { 50% { transform: scale(1.07); } }
+
+  .vignette {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    /* a gradient rather than a 300px inset box-shadow, which is far cheaper */
+    background: radial-gradient(circle at 50% 46%, transparent 46%,
+                color-mix(in srgb, var(--tier) calc(var(--intensity) * 34%), transparent) 100%);
+    transition: background 700ms ease;
+  }
+
+  .scanlines {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    opacity: calc(var(--intensity) * .16);
+    background: repeating-linear-gradient(
+      0deg, transparent 0 2px, color-mix(in srgb, var(--tier) 55%, transparent) 2px 3px);
+    transition: opacity 700ms ease;
+  }
+
+  /* ── lightning + flash ────────────────────────────────────── */
+
+  .bolts { position: fixed; inset: 0; pointer-events: none; z-index: 4; }
+  .bolts path {
+    fill: none;
+    stroke: #fff;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    filter: drop-shadow(0 0 6px var(--tier)) drop-shadow(0 0 22px var(--tier));
+    animation: strike 620ms ease-out forwards;
+  }
+  @keyframes strike {
+    0%   { opacity: 0; }
+    6%   { opacity: 1; }
+    14%  { opacity: .15; }
+    22%  { opacity: 1; }
+    38%  { opacity: .4; }
+    52%  { opacity: .95; }
+    100% { opacity: 0; }
+  }
+
+  .flash {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 6;
+    opacity: 0;
+    mix-blend-mode: screen;
+    background: radial-gradient(circle at 50% 46%, #fff, var(--tier) 45%, transparent 78%);
+  }
+  .flash.on { animation: blast var(--flash-ms, 700ms) ease-out; }
+  @keyframes blast {
+    0%   { opacity: 0; }
+    5%   { opacity: var(--flash-peak, .75); }
+    18%  { opacity: .12; }
+    30%  { opacity: calc(var(--flash-peak, .75) * .7); }
+    100% { opacity: 0; }
+  }
+
+  /* ── stage ────────────────────────────────────────────────── */
+
+  .stage {
+    position: relative;
+    z-index: 3;
+    width: min(780px, 92vw);
+    display: grid;
+    gap: 32px;
+    justify-items: center;
+    text-align: center;
+  }
+  .stage.shake { animation: shake var(--shake-ms, 450ms) cubic-bezier(.36,.07,.19,.97); }
+  @keyframes shake {
+    10%, 90% { transform: translate(-2px, 1px); }
+    20%, 80% { transform: translate(4px, -2px); }
+    30%, 50%, 70% { transform: translate(-9px, 2px) rotate(-.4deg); }
+    40%, 60% { transform: translate(9px, -1px) rotate(.4deg); }
+  }
+
+  .banner {
+    height: 32px;
+    font-size: 15px;
+    letter-spacing: .45em;
+    font-weight: 700;
+    color: #fff;
+    opacity: 0;
+    text-shadow: 0 0 10px #fff, 0 0 30px var(--tier), 0 0 60px var(--tier);
+  }
+  .banner.on { animation: flare 1.6s ease-out; }
+  @keyframes flare {
+    0%   { opacity: 0; transform: scale(.75); filter: blur(8px); }
+    10%  { opacity: 1; transform: scale(1.18); filter: blur(0); }
+    18%  { opacity: .3; }
+    26%  { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; }
+  }
+
+  .tier-name {
+    font-size: clamp(46px, 10vw, 104px);
+    font-weight: 800;
+    letter-spacing: .12em;
+    line-height: 1;
+    color: #fff;
+    text-shadow:
+      0 0 calc(6px + var(--intensity) * 10px) #fff,
+      0 0 calc(24px + var(--intensity) * 40px) var(--tier),
+      0 0 calc(60px + var(--intensity) * 120px) var(--tier);
+    transition: text-shadow 500ms ease;
+  }
+  .tier-name.pop { animation: pop 560ms cubic-bezier(.2,1.6,.35,1); }
+  @keyframes pop { 0% { transform: scale(.82); } 55% { transform: scale(1.12); } 100% { transform: scale(1); } }
+
+  .meter { display: flex; gap: 7px; }
+  .seg {
+    width: clamp(16px, 3.4vw, 32px);
+    height: 62px;
+    border-radius: 4px;
+    background: var(--seg-off);
+    transition: background 240ms ease, box-shadow 240ms ease, transform 240ms ease;
+  }
+  .seg.lit {
+    background: linear-gradient(180deg, #fff, var(--tier) 38%, var(--tier));
+    box-shadow:
+      0 0 calc(12px + var(--intensity) * 18px) var(--tier),
+      0 0 calc(34px + var(--intensity) * 60px) color-mix(in srgb, var(--tier) 70%, transparent);
+    transform: scaleY(calc(1.06 + var(--intensity) * .12));
+  }
+  .meter.charged .seg.lit { animation: shimmer calc(1.6s - var(--intensity) * .9s) ease-in-out infinite; }
+  @keyframes shimmer { 50% { filter: brightness(1.45); } }
+
+  .readout { font-size: 14px; letter-spacing: .2em; color: #7c879b; }
+  .readout b { color: var(--tier); font-weight: 700; text-shadow: 0 0 12px var(--tier); }
+
+  /* ── slider ───────────────────────────────────────────────── */
+
+  .slider-wrap { width: 100%; display: grid; gap: 14px; }
+
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 10px;
+    border-radius: 99px;
+    background: linear-gradient(90deg, var(--tier) calc(var(--pct) * 1%), var(--seg-off) calc(var(--pct) * 1%));
+    box-shadow: 0 0 calc(var(--intensity) * 30px) color-mix(in srgb, var(--tier) 70%, transparent);
+    outline: none; cursor: grab;
+    transition: background 240ms ease, box-shadow 500ms ease;
+  }
+  input[type=range]:active { cursor: grabbing; }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 32px; height: 32px; border-radius: 50%;
+    background: #fff; border: 4px solid var(--tier);
+    box-shadow: 0 0 calc(18px + var(--intensity) * 34px) var(--tier);
+    transition: border-color 240ms ease, box-shadow 500ms ease, transform 160ms ease;
+  }
+  input[type=range]:active::-webkit-slider-thumb { transform: scale(1.2); }
+  input[type=range]::-moz-range-thumb {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: #fff; border: 4px solid var(--tier);
+    box-shadow: 0 0 calc(18px + var(--intensity) * 34px) var(--tier);
+  }
+
+  .ticks { display: flex; justify-content: space-between; font-size: 11px; letter-spacing: .18em; color: #59637a; }
+  .ticks span { flex: 1; transition: color 240ms ease, text-shadow 240ms ease; }
+  .ticks span:first-child { text-align: left; }
+  .ticks span:last-child { text-align: right; }
+  .ticks span.active { color: #fff; font-weight: 700; text-shadow: 0 0 14px var(--tier); }
+
+  .hint { font-size: 12px; letter-spacing: .12em; color: #49566e; }
+
+  .spark {
+    position: fixed;
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 10px var(--tier), 0 0 22px var(--tier);
+    pointer-events: none; z-index: 5;
+    animation: fly var(--life, 900ms) cubic-bezier(.15,.7,.3,1) forwards;
+  }
+  @keyframes fly {
+    from { opacity: 1; transform: translate(0, 0) scale(1); }
+    to   { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(.15); }
+  }
+
+  /* ── MAX overload ─────────────────────────────────────────── */
+
+  body.max .tier-name { animation: neon 2.6s linear infinite; }
+  @keyframes neon {
+    0%, 42%, 46%, 52%, 100% { opacity: 1; }
+    44%, 49% { opacity: .55; }
+  }
+  body.max .aura { animation-duration: 1.5s; }
+  body.max::after {
+    content: '';
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 2;
+    background: radial-gradient(circle at 50% 46%, color-mix(in srgb, var(--tier) 26%, transparent), transparent 70%);
+    animation: overload 1.4s ease-in-out infinite;
+  }
+  @keyframes overload { 50% { opacity: .35; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition-duration: 80ms !important; }
+  }
+</style>
+</head>
+<body>
+  <div class="aura"></div>
+  <div class="scanlines"></div>
+  <div class="vignette"></div>
+  <svg class="bolts" id="bolts" aria-hidden="true"></svg>
+  <div class="flash" id="flash" aria-hidden="true"></div>
+
+  <main class="stage" id="stage">
+    <div class="banner" id="banner"></div>
+    <h1 class="tier-name" id="tierName">LOW</h1>
+    <div class="meter" id="meter" aria-hidden="true"></div>
+    <p class="readout"><b id="pct">20%</b> &nbsp;·&nbsp; <b id="key">3</b> / 15 power</p>
+
+    <div class="slider-wrap">
+      <input type="range" id="slider" min="0" max="4" step="1" value="0"
+             aria-label="Thinking effort level">
+      <div class="ticks" id="ticks"></div>
+    </div>
+
+    <p class="hint">drag the slider &nbsp;·&nbsp; or use ← → arrow keys</p>
+  </main>
+
+<script>
+const TIERS = [
+  { key: 'low',    name: 'LOW',    color: '#00d7ff' },
+  { key: 'medium', name: 'MEDIUM', color: '#00ff87' },
+  { key: 'high',   name: 'HIGH',   color: '#ffff00' },
+  { key: 'xhigh',  name: 'XHIGH',  color: '#ff8700' },
+  { key: 'max',    name: 'MAX',    color: '#ff005f' },
+];
+const SEGMENTS_PER_TIER = 3;
+const TOTAL_SEGMENTS = TIERS.length * SEGMENTS_PER_TIER;
+const MAX_INDEX = TIERS.length - 1;
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+const el = (id) => document.getElementById(id);
+const stage = el('stage'), meter = el('meter'), slider = el('slider'), bolts = el('bolts');
+const root = document.documentElement;
+let current = 0;
+let stormTimer = null;
+
+meter.innerHTML = Array.from({ length: TOTAL_SEGMENTS }, () => '<i class="seg"></i>').join('');
+el('ticks').innerHTML = TIERS.map((t) => `<span>${t.name}</span>`).join('');
+
+const segments = [...meter.children];
+const tickLabels = [...el('ticks').children];
+
+function replay(node, className) {
+  node.classList.remove(className);
+  void node.offsetWidth;                       // force reflow to restart the animation
+  node.classList.add(className);
+}
+
+/* Jagged polyline from (x1,y1) to (x2,y2), displaced perpendicular to the run. */
+function boltPath(x1, y1, x2, y2, steps, spread) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const length = Math.hypot(dx, dy) || 1;
+  const nx = -dy / length, ny = dx / length;   // unit normal
+
+  let d = `M ${x1} ${y1}`;
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps;
+    const taper = Math.sin(t * Math.PI);       // no wander at the endpoints
+    const offset = (Math.random() - 0.5) * spread * taper;
+    d += ` L ${x1 + dx * t + nx * offset} ${y1 + dy * t + ny * offset}`;
+  }
+  return d + ` L ${x2} ${y2}`;
+}
+
+function strike(count, { thick = 2.4, spread = 90 } = {}) {
+  const target = meter.getBoundingClientRect();
+  const midY = target.top + target.height / 2;
+
+  for (let i = 0; i < count; i++) {
+    const path = document.createElementNS(SVG_NS, 'path');
+    const originX = Math.random() * window.innerWidth;
+    const hitX = target.left + Math.random() * target.width;
+    path.setAttribute('d', boltPath(originX, -40, hitX, midY, 14 + Math.floor(Math.random() * 8), spread));
+    path.setAttribute('stroke-width', (thick * (0.5 + Math.random())).toFixed(2));
+    path.style.animationDelay = `${Math.random() * 160}ms`;
+    bolts.appendChild(path);
+    path.addEventListener('animationend', () => path.remove());
+
+    // a fainter fork trailing off the main channel
+    if (Math.random() > 0.45) {
+      const fork = document.createElementNS(SVG_NS, 'path');
+      fork.setAttribute('d', boltPath(hitX, midY, hitX + (Math.random() - 0.5) * 340, midY - 140 - Math.random() * 160, 8, 60));
+      fork.setAttribute('stroke-width', '1.2');
+      fork.style.opacity = '.6';
+      fork.style.animationDelay = `${Math.random() * 200}ms`;
+      bolts.appendChild(fork);
+      fork.addEventListener('animationend', () => fork.remove());
+    }
+  }
+}
+
+function emitSparks(count, power) {
+  const rect = meter.getBoundingClientRect();
+  for (let i = 0; i < count; i++) {
+    const spark = document.createElement('div');
+    const angle = Math.random() * Math.PI * 2;
+    const distance = (90 + Math.random() * 240) * power;
+    spark.className = 'spark';
+    spark.style.left = `${rect.left + Math.random() * rect.width}px`;
+    spark.style.top = `${rect.top + Math.random() * rect.height}px`;
+    spark.style.setProperty('--dx', `${Math.cos(angle) * distance}px`);
+    spark.style.setProperty('--dy', `${Math.sin(angle) * distance - 60}px`);
+    spark.style.setProperty('--life', `${700 + Math.random() * 600}ms`);
+    document.body.appendChild(spark);
+    spark.addEventListener('animationend', () => spark.remove());
+  }
+}
+
+function flash(peak, ms) {
+  const node = el('flash');
+  node.style.setProperty('--flash-peak', peak);
+  node.style.setProperty('--flash-ms', `${ms}ms`);
+  replay(node, 'on');
+}
+
+/* At MAX the storm keeps going instead of firing once. */
+function setStorm(active) {
+  document.body.classList.toggle('max', active);
+  if (stormTimer) { clearInterval(stormTimer); stormTimer = null; }
+  if (!active) return;
+  stormTimer = setInterval(() => {
+    strike(1 + Math.floor(Math.random() * 2), { thick: 1.8, spread: 110 });
+    flash(0.16, 420);
+  }, 1100);
+}
+
+function celebrate(index, previous) {
+  const jump = index - previous;
+  const power = (index + 1) / TIERS.length;
+
+  const banner = el('banner');
+  banner.textContent = jump > 0 ? '⚡ POWER UP ⚡' : 'POWER DOWN';
+  replay(banner, 'on');
+  replay(el('tierName'), 'pop');
+
+  if (jump < 0) {
+    flash(0.18, 420);
+    return;
+  }
+
+  stage.style.setProperty('--shake-ms', `${380 + jump * 90}ms`);
+  replay(stage, 'shake');
+  strike(2 + Math.round(power * 5) + jump, { thick: 1.8 + power * 2.6, spread: 70 + power * 90 });
+  emitSparks(Math.round(18 + power * 46), power);
+  flash(index === MAX_INDEX ? 0.98 : 0.3 + power * 0.4, index === MAX_INDEX ? 1100 : 620);
+}
+
+function render(index, previous) {
+  const tier = TIERS[index];
+  const lit = (index + 1) * SEGMENTS_PER_TIER;
+
+  root.style.setProperty('--tier', tier.color);
+  root.style.setProperty('--intensity', (index / MAX_INDEX).toFixed(3));
+  slider.style.setProperty('--pct', (index / MAX_INDEX) * 100);
+
+  segments.forEach((seg, i) => {
+    seg.classList.toggle('lit', i < lit);
+    seg.style.transitionDelay = i < lit ? `${i * 26}ms` : '0ms';
+  });
+  meter.classList.toggle('charged', index >= 2);
+
+  el('tierName').textContent = tier.name;
+  el('pct').textContent = Math.round((lit / TOTAL_SEGMENTS) * 100) + '%';
+  el('key').textContent = lit;
+  tickLabels.forEach((label, i) => label.classList.toggle('active', i === index));
+
+  setStorm(index === MAX_INDEX);
+  if (previous !== null && previous !== index) celebrate(index, previous);
+}
+
+slider.addEventListener('input', () => {
+  const next = Number(slider.value);
+  if (next === current) return;
+  const previous = current;
+  current = next;
+  render(current, previous);
+});
+
+render(0, null);
+</script>
+</body>
+</html>

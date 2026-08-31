@@ -4,21 +4,22 @@ Turns Claude Code's thinking/effort setting into a power meter in the statusline
 Cycle the level and the bar charges up with a short power-up burst, then settles.
 
 ```
-◑ SURGE [▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱]  Opus 5 · my-repo
+◑ HIGH [▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱]  Opus 5 · my-repo
 
 ✵ ╲  POWER UP  ╲ ✵
-[▰▰▰▰▰▰▰▰▰▰▰▰▱▱▱] SURGE ▶ OVERDRIVE 80%  Opus 5 · my-repo
+[▰▰▰▰▰▰▰▰▰▰▰▰▱▱▱] HIGH ▶ MAX 80%  Opus 5 · my-repo
 ```
 
 ## Tiers
 
-| effortLevel | Name | Meter |
+| effortLevel | Label | Meter |
 |---|---|---|
-| `low` | SPARK | 3/15 |
-| `medium` | FOCUS | 6/15 |
-| `high` | SURGE | 9/15 |
-| `xhigh` | BLAZE | 12/15 |
-| `max` | OVERDRIVE | 15/15 |
+| `low` | LOW | 3/15 |
+| `medium` | MEDIUM | 6/15 |
+| `high` | HIGH | 9/15 |
+| `xhigh` | XHIGH | 12/15 |
+| `max` | MAX | 15/15 |
+
 
 ## How it works
 
@@ -55,8 +56,13 @@ restore `~/.claude/settings.json.before-thinking-visualizer`.
 ## Preview without installing
 
 ```bash
-python3 demo.py       # animates every tier up and back down
+python3 demo.py       # animates every tier up and back down in the terminal
+open web/index.html   # interactive version with a draggable slider
 ```
+
+`web/index.html` is a standalone page — no build step, no dependencies. Drag the
+slider or use the arrow keys to move between tiers and watch the meter charge.
+Useful for showing the thing on a screen without installing anything.
 
 ## Tests
 
