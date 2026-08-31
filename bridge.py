@@ -17,7 +17,7 @@ import json
 import os
 import shutil
 import sys
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("THINKING_BRIDGE_PORT", "7373"))
@@ -116,7 +116,10 @@ class BridgeHandler(BaseHTTPRequestHandler):
 def main():
     if not os.path.exists(SETTINGS_PATH):
         sys.exit("no settings file at {}".format(SETTINGS_PATH))
-    server = HTTPServer((HOST, PORT), BridgeHandler)
+    # threaded: the page holds a keep-alive connection open and polls, which
+    # would wedge a single-threaded server after the first request
+    server = ThreadingHTTPServer((HOST, PORT), BridgeHandler)
+    server.daemon_threads = True
     print("Thinking bridge on http://{}:{}  (Ctrl+C to stop)".format(HOST, PORT))
     print("Writing effortLevel to {}".format(SETTINGS_PATH))
     try:
