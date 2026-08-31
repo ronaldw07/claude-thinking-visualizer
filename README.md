@@ -17,8 +17,12 @@ Cycle the level and the bar charges up with a short power-up burst, then settles
 | `low` | LOW | 3/15 |
 | `medium` | MEDIUM | 6/15 |
 | `high` | HIGH | 9/15 |
-| `xhigh` | ULTRACODE | 12/15 |
+| `xhigh` | XHIGH | 12/15 |
 | `max` | MAX | 15/15 |
+
+Ultracode is `xhigh + workflows` in the picker but reports as `xhigh` on the
+statusline, so the statusline cannot tell the two apart. The web slider lists
+it as its own top rung above MAX.
 
 
 ## How it works

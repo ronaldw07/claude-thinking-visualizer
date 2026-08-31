@@ -283,11 +283,12 @@
     44%, 49% { opacity: .55; }
   }
   body.storm { background: #0d0500; }
-  body.max { background: #12000a; }
-  body.storm .aura { animation-duration: 1.6s; }
-  body.max .aura { animation-duration: 1.15s; }
-  body.storm .scanlines { opacity: .22; animation: crawl 1.3s linear infinite; }
-  body.max .scanlines { opacity: .3; animation-duration: 900ms; }
+  body.peak { background: #12000a; }
+  body.storm .aura { animation-duration: calc(1.9s - var(--rage, 0) * .8s); }
+  body.storm .scanlines {
+    opacity: calc(.18 + var(--rage, 0) * .14);
+    animation: crawl calc(1.4s - var(--rage, 0) * .5s) linear infinite;
+  }
   @keyframes crawl { to { background-position: 0 6px; } }
 
   /* pressure closing in from the edges */
@@ -311,8 +312,7 @@
     animation: neon 2.6s linear infinite;
     letter-spacing: .2em;
   }
-  body.storm .seg.lit { animation-duration: .7s; }
-  body.max .seg.lit { animation-duration: .5s; }
+  body.storm .seg.lit { animation-duration: calc(.85s - var(--rage, 0) * .4s); }
 
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition-duration: 80ms !important; }
@@ -335,7 +335,7 @@
     <p class="readout"><b id="pct">20%</b> &nbsp;·&nbsp; <b id="key">3</b> / 15 power</p>
 
     <div class="slider-wrap">
-      <input type="range" id="slider" min="0" max="4" step="1" value="0"
+      <input type="range" id="slider" min="0" max="5" step="1" value="0"
              aria-label="Thinking effort level">
       <div class="ticks" id="ticks"></div>
     </div>
@@ -348,13 +348,14 @@ const TIERS = [
   { key: 'low',    name: 'LOW',    color: '#00d7ff' },
   { key: 'medium', name: 'MEDIUM', color: '#00ff87' },
   { key: 'high',   name: 'HIGH',   color: '#ffff00' },
-  { key: 'xhigh',  name: 'ULTRACODE', color: '#ff8700' },
-  { key: 'max',    name: 'MAX',    color: '#ff005f' },
+  { key: 'xhigh',     name: 'XHIGH',     color: '#ff8700' },
+  { key: 'max',       name: 'MAX',       color: '#ff005f' },
+  { key: 'ultracode', name: 'ULTRACODE', color: '#b76bff' },
 ];
 const SEGMENTS_PER_TIER = 3;
 const TOTAL_SEGMENTS = TIERS.length * SEGMENTS_PER_TIER;
 const MAX_INDEX = TIERS.length - 1;
-const STORM_FROM = 3;            // xhigh is Ultracode — it storms too
+const STORM_FROM = 3;            // xhigh and up run the storm, escalating
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 const el = (id) => document.getElementById(id);
@@ -488,9 +489,12 @@ function flash(peak, ms) {
 function setStorm(index) {
   const storming = index >= STORM_FROM;
   const peak = index === MAX_INDEX;
+  // 0 at XHIGH, .5 at MAX, 1 at ULTRACODE
+  const rage = storming ? (index - STORM_FROM) / (MAX_INDEX - STORM_FROM) : 0;
   document.body.classList.toggle('storm', storming);
-  document.body.classList.toggle('max', peak);
-  el('meterFrame').style.setProperty('--ring', storming ? (peak ? '1' : '.7') : '0');
+  document.body.classList.toggle('peak', peak);
+  document.body.style.setProperty('--rage', rage.toFixed(2));
+  el('meterFrame').style.setProperty('--ring', storming ? (0.6 + rage * 0.4).toFixed(2) : '0');
   if (stormTimer) { clearInterval(stormTimer); stormTimer = null; }
   if (!storming) return;
 
@@ -499,16 +503,16 @@ function setStorm(index) {
     beat++;
     if (beat % 3 === 0) {
       // every third beat, a full radial discharge
-      radiate((peak ? 10 : 6) + Math.floor(Math.random() * 6), { thick: peak ? 2.4 : 1.9, spread: 70 });
-      shockwave(Math.min(window.innerWidth, window.innerHeight) * (peak ? 0.9 : 0.6), 800);
-      flash(peak ? 0.34 : 0.2, 520);
-      emitSparks(peak ? 20 : 12, 1);
+      radiate(6 + Math.round(rage * 8) + Math.floor(Math.random() * 6), { thick: 1.9 + rage, spread: 70 });
+      shockwave(Math.min(window.innerWidth, window.innerHeight) * (0.6 + rage * 0.45), 800);
+      flash(0.2 + rage * 0.2, 520);
+      emitSparks(12 + Math.round(rage * 14), 1);
     } else {
-      radiate((peak ? 4 : 2) + Math.floor(Math.random() * 4), { thick: 1.6, spread: 55, reach: 0.7 });
-      strike(1, { thick: 1.8, spread: 110 });
-      flash(peak ? 0.14 : 0.09, 380);
+      radiate(2 + Math.round(rage * 3) + Math.floor(Math.random() * 4), { thick: 1.6, spread: 55, reach: 0.7 });
+      strike(1 + Math.round(rage), { thick: 1.8, spread: 110 });
+      flash(0.09 + rage * 0.07, 380);
     }
-  }, peak ? 900 : 1500);
+  }, 1500 - rage * 750);
 }
 
 function celebrate(index, previous) {
@@ -542,9 +546,9 @@ function celebrate(index, previous) {
 
   // MAX: everything at once — a star of bolts out of the core, stacked
   // shockwaves, and a long white-out.
-  radiate(22, { thick: 3.4, spread: 90, reach: 1.25 });
-  emitSparks(70, 1.4);
-  flash(1, 1400);
+  radiate(28, { thick: 3.8, spread: 95, reach: 1.35 });
+  emitSparks(80, 1.5);
+  flash(1, 1600);
   const reach = Math.max(window.innerWidth, window.innerHeight) * 1.15;
   [0, 140, 300].forEach((delay, i) => {
     setTimeout(() => {

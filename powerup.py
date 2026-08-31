@@ -14,7 +14,7 @@ TIERS = (
     {"key": "low", "name": "LOW", "icon": "○", "color": 45},
     {"key": "medium", "name": "MEDIUM", "icon": "◔", "color": 48},
     {"key": "high", "name": "HIGH", "icon": "◑", "color": 226},
-    {"key": "xhigh", "name": "ULTRACODE", "icon": "◕", "color": 208},
+    {"key": "xhigh", "name": "XHIGH", "icon": "◕", "color": 208},
     {"key": "max", "name": "MAX", "icon": "●", "color": 197},
 )
 
