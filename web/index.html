@@ -224,6 +224,32 @@
   .meter.charged .seg.lit { animation: shimmer calc(1.6s - var(--intensity) * .9s) ease-in-out infinite; }
   @keyframes shimmer { 50% { filter: brightness(1.45); } }
 
+  /* the slider track blowing out when the top rung lands */
+  .slider-wrap { position: relative; }
+  .slider-wrap.blown::before {
+    content: '';
+    position: absolute; inset: -18px -10px auto -10px; height: 60px;
+    border-radius: 99px;
+    background: radial-gradient(ellipse at center, #fff, var(--tier) 40%, transparent 72%);
+    pointer-events: none;
+    animation: blowout 900ms ease-out forwards;
+  }
+  @keyframes blowout {
+    0%   { opacity: 0; transform: scaleX(.2); filter: blur(0); }
+    12%  { opacity: 1; transform: scaleX(1.04); }
+    40%  { opacity: .5; }
+    100% { opacity: 0; transform: scaleX(1.12); }
+  }
+
+  /* the whole meter beating while a storm runs */
+  body.storm .meter-frame { animation: heartbeat calc(1.5s - var(--rage, 0) * .6s) ease-in-out infinite; }
+  @keyframes heartbeat {
+    0%, 100% { transform: scale(1); }
+    8%       { transform: scale(1.035); }
+    16%      { transform: scale(1); }
+    24%      { transform: scale(1.02); }
+  }
+
   .readout { font-size: 14px; letter-spacing: .2em; color: #7c879b; }
   .readout b { color: var(--tier); font-weight: 700; text-shadow: 0 0 12px var(--tier); }
 
@@ -363,6 +389,7 @@ const stage = el('stage'), meter = el('meter'), slider = el('slider'), bolts = e
 const root = document.documentElement;
 let current = 0;
 let stormTimer = null;
+let crackleTimer = null;
 
 meter.innerHTML = Array.from({ length: TOTAL_SEGMENTS }, () => '<i class="seg"></i>').join('');
 el('ticks').innerHTML = TIERS.map((t) => `<span>${t.name}</span>`).join('');
@@ -370,7 +397,7 @@ el('ticks').innerHTML = TIERS.map((t) => `<span>${t.name}</span>`).join('');
 const segments = [...meter.children];
 const tickLabels = [...el('ticks').children];
 
-const MAX_LIVE_BOLTS = 46;
+const MAX_LIVE_BOLTS = 70;
 
 /* animationend is unreliable once the page is busy, so every transient node
    also gets a hard timer. Without this they pile up and starve the renderer. */
@@ -451,6 +478,57 @@ function radiate(count, { thick = 2.2, spread = 60, reach = 1 } = {}) {
   }
 }
 
+/* Lightning running along a horizontal element — used for the slider track
+   and the meter, so the bar itself looks electrified rather than just lit. */
+function arcAlong(rect, count, { thick = 1.6, spread = 26 } = {}) {
+  if (bolts.childElementCount > MAX_LIVE_BOLTS) return;
+  for (let i = 0; i < count; i++) {
+    const y = rect.top + rect.height / 2;
+    const from = rect.left + Math.random() * rect.width * 0.4;
+    const to = from + rect.width * (0.35 + Math.random() * 0.6);
+    const path = document.createElementNS(SVG_NS, 'path');
+    path.setAttribute('d', boltPath(from, y, Math.min(to, rect.right), y, 12, spread));
+    path.setAttribute('stroke-width', (thick * (0.6 + Math.random())).toFixed(2));
+    path.style.animationDelay = `${Math.random() * 220}ms`;
+    transient(path, bolts, 900);
+  }
+}
+
+/* The slider detonating when the top rung lands. */
+function explodeBar() {
+  const wrap = slider.parentElement;
+  const rect = slider.getBoundingClientRect();
+  replay(wrap, 'blown');
+
+  arcAlong(rect, 7, { thick: 2.6, spread: 40 });
+
+  // bolts leaping off the track, up and down
+  for (let i = 0; i < 16; i++) {
+    const x = rect.left + Math.random() * rect.width;
+    const y = rect.top + rect.height / 2;
+    const path = document.createElementNS(SVG_NS, 'path');
+    const rise = (120 + Math.random() * 230) * (Math.random() > 0.55 ? -1 : 1);
+    path.setAttribute('d', boltPath(x, y, x + (Math.random() - 0.5) * 260, y + rise, 9, 48));
+    path.setAttribute('stroke-width', (1.4 + Math.random() * 2).toFixed(2));
+    path.style.animationDelay = `${Math.random() * 200}ms`;
+    transient(path, bolts, 900);
+  }
+
+  // sparks spraying along the full length of the track
+  for (let i = 0; i < 46; i++) {
+    const spark = document.createElement('div');
+    const angle = (Math.random() - 0.5) * Math.PI * 1.6 - Math.PI / 2;
+    const distance = 80 + Math.random() * 260;
+    spark.className = 'spark';
+    spark.style.left = `${rect.left + Math.random() * rect.width}px`;
+    spark.style.top = `${rect.top + rect.height / 2}px`;
+    spark.style.setProperty('--dx', `${Math.cos(angle) * distance}px`);
+    spark.style.setProperty('--dy', `${Math.sin(angle) * distance}px`);
+    spark.style.setProperty('--life', `${600 + Math.random() * 700}ms`);
+    transient(spark, document.body, 1500);
+  }
+}
+
 function shockwave(size, ms) {
   const rect = meter.getBoundingClientRect();
   const ring = document.createElement('div');
@@ -496,7 +574,18 @@ function setStorm(index) {
   document.body.style.setProperty('--rage', rage.toFixed(2));
   el('meterFrame').style.setProperty('--ring', storming ? (0.6 + rage * 0.4).toFixed(2) : '0');
   if (stormTimer) { clearInterval(stormTimer); stormTimer = null; }
+  if (crackleTimer) { clearInterval(crackleTimer); crackleTimer = null; }
   if (!storming) return;
+
+  // fast layer: constant crackle so the screen never sits still
+  crackleTimer = setInterval(() => {
+    arcAlong(meter.getBoundingClientRect(), 1 + Math.round(rage * 2), { thick: 1.4 });
+    if (Math.random() < 0.5 + rage * 0.4) {
+      arcAlong(slider.getBoundingClientRect(), 1 + Math.round(rage), { thick: 1.2, spread: 20 });
+    }
+    if (Math.random() < 0.35 + rage * 0.45) radiate(2 + Math.round(rage * 3), { thick: 1.3, spread: 45, reach: 0.5 });
+    if (Math.random() < 0.3) flash(0.05 + rage * 0.06, 260);
+  }, 260 - rage * 110);
 
   let beat = 0;
   stormTimer = setInterval(() => {
@@ -540,6 +629,8 @@ function celebrate(index, previous) {
       radiate(14, { thick: 2.6, spread: 80, reach: 1 });
       shockwave(Math.max(window.innerWidth, window.innerHeight) * 0.8, 900);
       emitSparks(40, 1.1);
+      arcAlong(slider.getBoundingClientRect(), 4, { thick: 2 });
+      arcAlong(meter.getBoundingClientRect(), 5, { thick: 2.2, spread: 36 });
     }
     return;
   }
@@ -549,6 +640,8 @@ function celebrate(index, previous) {
   radiate(28, { thick: 3.8, spread: 95, reach: 1.35 });
   emitSparks(80, 1.5);
   flash(1, 1600);
+  explodeBar();
+  arcAlong(meter.getBoundingClientRect(), 8, { thick: 3, spread: 44 });
   const reach = Math.max(window.innerWidth, window.innerHeight) * 1.15;
   [0, 140, 300].forEach((delay, i) => {
     setTimeout(() => {
