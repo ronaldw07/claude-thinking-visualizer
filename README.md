@@ -20,6 +20,10 @@ Cycle the level and the bar charges up with a short power-up burst, then settles
 | `xhigh` | XHIGH | 12/15 |
 | `max` | MAX | 15/15 |
 
+Ultracode is `xhigh + workflows` in the picker but reports as `xhigh` on the
+statusline, so the statusline cannot tell the two apart. The web slider lists
+it as its own top rung above MAX.
+
 
 ## How it works
 
@@ -37,6 +41,29 @@ idle — a counter would freeze mid-animation. The installer also sets
 If `effort.level` is absent (older Claude Code, or a model without the effort
 parameter) it falls back to the `effortLevel` setting, project
 `.claude/settings.json` first, then the user-level file.
+
+## Driving the real setting from the browser
+
+A `file://` page is sandboxed and cannot write to `~/.claude/settings.json`.
+`bridge.py` serves the same page over loopback and exposes two endpoints, so
+the slider reads and writes the real `effortLevel`:
+
+```bash
+python3 bridge.py     # then open http://127.0.0.1:7373
+```
+
+Dragging the slider writes the level; the page also polls every 1.5s, so
+running `/effort` inside Claude Code moves the slider to match. Opened as a
+plain file, the page ignores all of this and stays a self-contained demo.
+
+The bridge binds to loopback only and rejects anything outside the five known
+levels. It backs `settings.json` up once before its first write and preserves
+every other key. ULTRACODE is stored as `xhigh`, which is how Claude Code
+itself persists it.
+
+Note: a newly started session reads the level from the file. Whether an
+already-running session picks up an external file change is unverified — use
+`/effort` in that session if it does not follow.
 
 ## Terminal support
 
